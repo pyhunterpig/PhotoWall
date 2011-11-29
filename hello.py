@@ -9,19 +9,25 @@ import imgutil
 import Image
 import cStringIO
 import math
+import json
+import ImageFont
 
 random.seed()
 BASE_DIR = os.path.dirname(__file__)
+PHOTO_PATH = os.path.join(BASE_DIR, "photos")
 
 def load_images(enable_types=["image/jpeg", "image/png", "image/gif"]):
-    PHOTO_PATH = os.path.join(BASE_DIR, "photos/logos")
-    files = [file for file in os.listdir(PHOTO_PATH) if not os.path.isdir(os.path.join(PHOTO_PATH, file))]
+    LOGO_PATH = os.path.join(BASE_DIR, "photos/logos")
+    AVATAR_PATH = os.path.join(BASE_DIR, "photos/peoples")
+    logos = ["logos/%s" % file for file in os.listdir(LOGO_PATH) if not os.path.isdir(os.path.join(LOGO_PATH, file))]
+    avatars = ["peoples/%s" % file for file in os.listdir(AVATAR_PATH) if not os.path.isdir(os.path.join(AVATAR_PATH, file))]
+    files = (logos + avatars)
+    random.shuffle(files)
     images = []
     for file in files:
         types = mimetypes.guess_type(os.path.join(PHOTO_PATH, file))
         if types and types[0] in enable_types:
             images.append(file)
-
     return images
 
 def load_namelist(file='photos/namelist.xls'):
@@ -30,32 +36,39 @@ def load_namelist(file='photos/namelist.xls'):
     sh = book.sheet_by_index(0)
     for rx in range(sh.nrows):
         row = sh.row(rx)
-        namelist.append(('%s.png' % row[0].value, row[1].value))
+        namelist.append(('%s.png' % row[0].value, row[1].value, row[2].value, row[3].value))
         
     return namelist
 
-filenames, namelist, timerspeed, event_title = \
-    load_images(), load_namelist(), 90, "PyCon 2011 China"
+namelist =  load_namelist()
 
-TIMER_ID1 = 2000
-TIMER_ID2 = 2001
+config = json.load(open(os.path.join(BASE_DIR, "photos", "speed.ini"), "rb"))
+wall_cols, bg_change_speed, letteroy_change_speed, main_logo, event_title, lottery_people = \
+    config.get('wall_cols', 15), \
+    config.get('bg_change_speed', 3000), \
+    config.get('lottery_change_speed', 78), \
+    config.get('main_logo',  {"postion":[6, 3, 4], "bg_color":"#eee"}), \
+    config.get('event_title', "PyCon 2011 China"), \
+    config.get('lottery_people_name', {"font_size": 30, "position":[100, 280]})
+
 
 class WallWindow(wx.Window):
-    def __init__(self, parent, cols=14):
+    def __init__(self, parent):
         wx.Window.__init__(self, parent)
-        self.photos = filenames
+        self.photos = load_images()
+        print self.photos
         self.Bind(wx.EVT_PAINT, self.on_paint)
         self.Bind(wx.EVT_KEY_DOWN, self.OnKeypress)
-        self.cols = cols
+        self.cols = wall_cols
         self.cur = 0
-        self.bg_timer = wx.Timer(self, id=TIMER_ID1)
-        self.lettory_timer = wx.Timer(self, id=TIMER_ID2)
+        self.bg_timer = wx.Timer(self, id=2000)
+        self.lettory_timer = wx.Timer(self, id=2001)
         self.Bind(wx.EVT_TIMER, self.on_timer, self.bg_timer)
         self.Bind(wx.EVT_TIMER, self.on_lettory, self.lettory_timer)
         self.cur_bg = {}
         self._image_cache = {}
-        self.bg_timer.Start(3000)
-        self.lettory_timer.Start(30)
+        self.bg_timer.Start(bg_change_speed)
+        self.lettory_timer.Start(letteroy_change_speed)
         self.lettory_start = False
         self.bg_start  = True
 
@@ -70,17 +83,15 @@ class WallWindow(wx.Window):
         background = Image.new('RGBA', (dw, dh), (255, 255, 255, 0))
     
         while n < (self.cols*rows):
-            if n >= (self.cols*2 + 5) and \
-                n < (self.cols*6 + 5) and \
-                ((n-5)%self.cols == 0 or \
-                 (n-6)%self.cols == 0 or \
-                 (n-7)%self.cols == 0 or\
-                 (n-8)%self.cols == 0):
-                pass
-            else:
+            need_paste = True
+            if n >= (self.cols*main_logo['postion'][1] + 5) and n < (self.cols*(main_logo['postion'][0]+1) + 5):
+                for i in range(main_logo['postion'][2]):
+                    if (n - (main_logo['postion'][0]+i))%self.cols == 0:
+                        need_paste = False
+            if need_paste:
                 image =  self._image_cache.get(self.photos[self.cur], None)
                 if not image:
-                    image = Image.open(os.path.join(BASE_DIR, "photos/logos", self.photos[self.cur]))
+                    image = Image.open(os.path.join(BASE_DIR, "photos", self.photos[self.cur]))
                     self._image_cache[self.photos[self.cur]] = image
                 val = imgutil._crop((w-2, w-2), image)
                 background.paste(Image.open(cStringIO.StringIO(val)), (x, y))
@@ -94,20 +105,30 @@ class WallWindow(wx.Window):
             if self.cur >= len(self.photos):
                 self.cur = 0
                 
-        val = imgutil._crop((w*4, w*4), Image.open(os.path.join(BASE_DIR, "photos", "main.png")))
-        background.paste(Image.open(cStringIO.StringIO(val)), (left+5*w, top+2*w))
+        val = imgutil._crop((w*main_logo['postion'][2], w*main_logo['postion'][2]), Image.open(os.path.join(BASE_DIR, "photos", "main.png")))
+        background.paste(Image.open(cStringIO.StringIO(val)), (left+main_logo['postion'][0]*w, top+main_logo['postion'][1]*w))
         return background
     
     def next_people(self):
-        image, name =  random.choice(namelist)
+        image, id, name, email =  random.choice(namelist)
         avatar_path = os.path.join(BASE_DIR, "photos/peoples", image)
         if os.path.exists(avatar_path):
             dw, dh = wx.DisplaySize()
             w = int(math.ceil(((dw-self.cols*2)*1.0)/(self.cols*1.0)))
-            background = Image.new('RGBA', (w*4, w*4), (199, 215, 255, 0))
+            background = Image.new('RGBA', (w*main_logo['postion'][2], w*main_logo['postion'][2]), main_logo['bg_color'])
             image = Image.open(avatar_path)
             val = imgutil._crop((w*2, w*2), image)
             background.paste(Image.open(cStringIO.StringIO(val)), (1*w, 1*w))
+            body_font = ImageFont.truetype(os.path.join(BASE_DIR, "xxk.ttf"), lottery_people['font_size'])
+            imgutil.draw_word_wrap(
+                    background,
+                    "%s:%s" % (id, name), 
+                    lottery_people['position'][0], 
+                    lottery_people['position'][1], 
+                    max_width=1000,
+                    fill=lottery_people['font_color'],
+                    font=body_font
+                )
             return imgutil.to_data(background)
 
     def get_background(self):
@@ -138,7 +159,7 @@ class WallWindow(wx.Window):
             top = ((dh%w)/4)
             left = ((dw%w)/2)
             bmp = wx.BitmapFromImage(wx.ImageFromStream( cStringIO.StringIO(self.next_people())))
-            dc.DrawBitmap(bmp, 5*w+left, 2*w+top, True)
+            dc.DrawBitmap(bmp, main_logo['postion'][0]*w+left, main_logo['postion'][1]*w+top, True)
     
     def OnKeypress(self, evt):
         code = evt.GetRawKeyCode()
