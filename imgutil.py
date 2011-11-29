@@ -1,14 +1,9 @@
 #!/usr/bin/python
 # encoding:utf-8
 
-import sys
-import os
 import math
-import re
-import web
-import hashlib
 from cStringIO import StringIO
-import Image, ImageDraw, ImageFont, ImageFilter, ImageEnhance
+import Image
 
 QUALITY = 100
 

@@ -7,8 +7,6 @@ import xlrd
 import os, mimetypes
 import imgutil
 import Image
-import threading
-import time
 import cStringIO
 import math
 
