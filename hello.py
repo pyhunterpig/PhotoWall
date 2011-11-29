@@ -1,179 +1,171 @@
-#!/usr/bin/env python
 #coding=utf-8
 """Photo Wall for PyCon China"""
 
 import wx
 import random
 import xlrd
+import os, mimetypes
+import imgutil
+import Image
+import threading
+import time
+import cStringIO
+import math
+
 random.seed()
+BASE_DIR = os.path.dirname(__file__)
 
-filenames = ['01.jpg', '02.jpg', '03.jpg', '04.jpg', '05.jpg', '06.jpg', '07.jpg', '08.jpg', '09.jpg', '10.jpg', '11.jpg', '12.jpg', '13.jpg', '14.jpg', '15.jpg', '16.jpg', '17.jpg', '18.jpg', '19.jpg', '20.jpg', '21.jpg', '22.jpg', '23.jpg', '24.jpg', '25.jpg', '26.jpg', '27.jpg', '28.jpg', '29.jpg', '30.jpg', '31.jpg', '32.jpg', '33.jpg', '34.jpg', '35.jpg', '36.jpg', '37.jpg', '38.jpg', '39.jpg', '40.jpg', '41.jpg', '42.jpg', '43.jpg', '44.jpg', '45.jpg', '46.jpg', '47.jpg', '48.jpg', '49.jpg', '50.jpg']
-fname = 'photos/namelist.xls'
-book = xlrd.open_workbook(fname)
-namelist = []
-sh = book.sheet_by_index(0)
-for rx in range(sh.nrows):
-    row = sh.row(rx)
-    namelist.append(('%s.jpg' %row[0].value,row[1].value))
+def load_images(enable_types=["image/jpeg", "image/png", "image/gif"]):
+    PHOTO_PATH = os.path.join(BASE_DIR, "photos/logos")
+    files = [file for file in os.listdir(PHOTO_PATH) if not os.path.isdir(os.path.join(PHOTO_PATH, file))]
+    images = []
+    for file in files:
+        types = mimetypes.guess_type(os.path.join(PHOTO_PATH, file))
+        if types and types[0] in enable_types:
+            images.append(file)
 
-try:
-    timerspeed = eval(open('photos/speed.ini'))
-except:
-    timerspeed = 90
+    return images
 
+def load_namelist(file='photos/namelist.xls'):
+    book = xlrd.open_workbook(os.path.join(BASE_DIR, file))
+    namelist = []
+    sh = book.sheet_by_index(0)
+    for rx in range(sh.nrows):
+        row = sh.row(rx)
+        namelist.append(('%s.png' % row[0].value, row[1].value))
+        
+    return namelist
 
-class RandomImagePlacementWindow(wx.Window):
-    def __init__(self, parent, image):
+filenames, namelist, timerspeed, event_title = \
+    load_images(), load_namelist(), 90, "PyCon 2011 China"
+
+TIMER_ID1 = 2000
+TIMER_ID2 = 2001
+
+class WallWindow(wx.Window):
+    def __init__(self, parent, cols=14):
         wx.Window.__init__(self, parent)
-        self.photos = []
-        for filename,employeename in namelist:
-            img1 = wx.Image('photos/'+filename.replace(u'\u2018',u''), wx.BITMAP_TYPE_ANY)
-            #img1 = img1.Scale(800,600)
-            self.photos.append((img1,employeename))
-        self.backgroundimags = [item[0].Scale(148/2,170/2) for item in self.photos]*3
-        self.Bind(wx.EVT_PAINT, self.OnPaint)
-        self.Bind(wx.EVT_KEY_DOWN,self.OnKeypress)
-        
-    def OnPaint(self, evt):
-        dc = wx.PaintDC(self)
-        brush = wx.Brush("sky blue")
-        dc.SetBackground(brush)
-        dc.Clear()
-        x = 0
-        y = 0
+        self.photos = filenames
+        self.Bind(wx.EVT_PAINT, self.on_paint)
+        self.Bind(wx.EVT_KEY_DOWN, self.OnKeypress)
+        self.cols = cols
+        self.cur = 0
+        self.bg_timer = wx.Timer(self, id=TIMER_ID1)
+        self.lettory_timer = wx.Timer(self, id=TIMER_ID2)
+        self.Bind(wx.EVT_TIMER, self.on_timer, self.bg_timer)
+        self.Bind(wx.EVT_TIMER, self.on_lettory, self.lettory_timer)
+        self.cur_bg = {}
+        self._image_cache = {}
+        self.bg_timer.Start(3000)
+        self.lettory_timer.Start(30)
+        self.lettory_start = False
+        self.bg_start  = True
+
+    def next_background(self):
         n = 0
-        w = 148/2
-        h = 170/2
+        dw, dh = wx.DisplaySize()
+        w = int(math.ceil(((dw-self.cols*2)*1.0)/(self.cols*1.0)))
+        y = top = ((dh%w)/4)
+        x = left = ((dw%w)/2)
+        rows = dh/w
         
-        for image in self.backgroundimags:
-            dc.DrawBitmap(image.ConvertToBitmap(), x, y, True)
+        background = Image.new('RGBA', (dw, dh), (255, 255, 255, 0))
+    
+        while n < (self.cols*rows):
+            if n >= (self.cols*2 + 5) and \
+                n < (self.cols*6 + 5) and \
+                ((n-5)%self.cols == 0 or \
+                 (n-6)%self.cols == 0 or \
+                 (n-7)%self.cols == 0 or\
+                 (n-8)%self.cols == 0):
+                pass
+            else:
+                image =  self._image_cache.get(self.photos[self.cur], None)
+                if not image:
+                    image = Image.open(os.path.join(BASE_DIR, "photos/logos", self.photos[self.cur]))
+                    self._image_cache[self.photos[self.cur]] = image
+                val = imgutil._crop((w-2, w-2), image)
+                background.paste(Image.open(cStringIO.StringIO(val)), (x, y))
             n += 1
-            if (n) % 14 == 0:
-                x = 0
-                y += h
+            self.cur += 1
+            if n % self.cols == 0:
+                x = left
+                y += w
             else:
                 x += w
-            
-        
-        
+            if self.cur >= len(self.photos):
+                self.cur = 0
+                
+        val = imgutil._crop((w*4, w*4), Image.open(os.path.join(BASE_DIR, "photos", "main.png")))
+        background.paste(Image.open(cStringIO.StringIO(val)), (left+5*w, top+2*w))
+        return background
+    
+    def next_people(self):
+        image, name =  random.choice(namelist)
+        avatar_path = os.path.join(BASE_DIR, "photos/peoples", image)
+        if os.path.exists(avatar_path):
+            dw, dh = wx.DisplaySize()
+            w = int(math.ceil(((dw-self.cols*2)*1.0)/(self.cols*1.0)))
+            background = Image.new('RGBA', (w*4, w*4), (199, 215, 255, 0))
+            image = Image.open(avatar_path)
+            val = imgutil._crop((w*2, w*2), image)
+            background.paste(Image.open(cStringIO.StringIO(val)), (1*w, 1*w))
+            return imgutil.to_data(background)
+
+    def get_background(self):
+        self.cur_bg = {'background':self.next_background(), 'opacity':1.0}
+        background = self.cur_bg['background']
+        bg = cStringIO.StringIO()
+        background.save(bg, "png", quality=100)
+        bg = bg.getvalue()
+        return bg
+
+    def draw_backgroud(self):
+        dc = wx.PaintDC(self)
+        bmp = wx.BitmapFromImage(wx.ImageFromStream( cStringIO.StringIO(self.get_background())))
+        dc.DrawBitmap(bmp, 0, 0, True)
+
+    def on_paint(self, evt):
+        self.draw_backgroud()
+    
+    def on_timer(self, evt):
+        if self.bg_start:
+            self.draw_backgroud()
+
+    def on_lettory(self, evt):
+        if self.lettory_start:
+            dw, dh = wx.DisplaySize()
+            w = int(math.ceil(((dw-self.cols*2)*1.0)/(self.cols*1.0)))
+            dc = wx.PaintDC(self)
+            top = ((dh%w)/4)
+            left = ((dw%w)/2)
+            bmp = wx.BitmapFromImage(wx.ImageFromStream( cStringIO.StringIO(self.next_people())))
+            dc.DrawBitmap(bmp, 5*w+left, 2*w+top, True)
+    
     def OnKeypress(self, evt):
+        code = evt.GetRawKeyCode()
+        # 按空格键抽奖
+        if code == 32:
+            self.lettory_start = not self.lettory_start
+            self.bg_start = False
+        # 按回车键启动或暂停更换背景
+        elif code == 65293:
+            self.bg_start = not self.bg_start
         
-        self.frame = Frame(self.photos, self)
-        self.frame.Show()
-            
-class TestFrame(wx.Frame):
+class WallFrame(wx.Frame):
     def __init__(self):
-        wx.Frame.__init__(self, None, title="PyCon 2011 China",
-                           size=(1024,768))
-        img = wx.Image("photos/01.jpg")
-        win = RandomImagePlacementWindow(self, img)
-
-
-class Frame(wx.Frame):   #2 wx.Frame子类
-    """Frame class that displays an image."""
-
-    def __init__(self, images, parent=None, id=-1,  
-                 pos=wx.DefaultPosition,
-                 title='猜猜我是WHO！'):     #3图像参数
-        """Create a Frame instance and display image."""
-    #4 显示图像
-        self.images = images
-        self.start = True
-        image = random.choice(self.images)
-        temp = image[0].ConvertToBitmap()                          
-        size = 800, 600
-        wx.Frame.__init__(self, parent, id, title, pos, size)
-        self.panel = wx.Panel(self,-1)
-        self.photo = wx.StaticBitmap(parent=self.panel)
-        self.photo.SetBitmap(temp)
-        self.nametext = wx.StaticText(self.panel, -1, "", (400, 300), 
-                (400, 100), wx.ALIGN_CENTER)
-        font = wx.Font(24, wx.DECORATIVE, wx.ITALIC, wx.NORMAL)
-        self.nametext.SetFont(font)
-        self.timer = wx.Timer(self)#创建定时器
-        self.Bind(wx.EVT_TIMER, self.OnTimer, self.timer)#绑定一个定时器事件
-        self.timer.Start(timerspeed)#设定时间间隔
-        
-        self.Bind(wx.EVT_KEY_DOWN, self.OnKeyDown)
-        
-        
-    
-    def changebmp(self,evt):
-        if self.start:
-            self.cimage = random.choice(self.images)
-            image = self.cimage[0]
-            x = (800-image.GetWidth())/2
-            y = (600-image.GetHeight())/2
-            temp = image.ConvertToBitmap()
-            self.photo.SetBitmap(temp)
-            self.photo.SetPosition(wx.Point(x, y)) 
-            self.panel.Refresh()
-
-
-    
-    def OnTimer(self,evt):
-        if self.start and len(self.images) > 0:
-            self.changebmp(evt)
-        
-            
-            
-            
-            
-    def OnKeyDown(self, evt):
-        #print evt.KeyCode
-        if self.start:
-            self.start = False
-            self.timer.Stop()
-            try:
-                self.images.remove(self.cimage)
-                
-            except ValueError:
-                pass
-            
-        else:
-            if self.nametext.GetLabel() == '':
-                self.nametext.SetLabel(self.cimage[1])
-                #print self.cimage[1].encode('cp936')
-                self.panel.Refresh()
-            else:
-                self.nametext.SetLabel('')
-                self.timer.Start(timerspeed)
-                self.start = True
-                
-            
-class PhotoWallFrame(wx.Frame):
-    def __init__(self):
-        wx.Frame.__init__(self, None, title="Loading Images")
-        p = wx.Panel(self)
-        fgs = wx.FlexGridSizer(cols=6, hgap=1, vgap=1)
-        for name in filenames:
-            img1 = wx.Image('photos/'+name, wx.BITMAP_TYPE_ANY)
-            w = img1.GetWidth()
-            h = img1.GetHeight()
-            sb1 = wx.StaticBitmap(p, -1, wx.BitmapFromImage(img1))
-            fgs.Add(sb1)
-
-        p.SetSizerAndFit(fgs)
-        self.Fit()
-
-                
+        wx.Frame.__init__(self, None, title=event_title,  size=wx.DisplaySize())
+        win = WallWindow(self)
 
 class App(wx.App):  #5 wx.App子类
     """Application class."""
 
     def OnInit(self):
-    #6 图像处理
-        #image = wx.Image('/home/pyhunterpig/workspace/91office/house1.png', wx.BITMAP_TYPE_PNG)  
-        #self.frame = Frame(image)
-        #self.frame = PhotoWallFrame()
-        self.frame = TestFrame()
+        self.frame = WallFrame()
         self.frame.Show()
         self.SetTopWindow(self.frame)
         return True
 
-def main():  #7       
+if __name__ == '__main__':   
     app = App(redirect=False)     
     app.MainLoop()  
-
-if __name__ == '__main__':   
-     main()
