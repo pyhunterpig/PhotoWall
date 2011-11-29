@@ -15,6 +15,15 @@ import ImageFont
 random.seed()
 BASE_DIR = os.path.dirname(__file__)
 PHOTO_PATH = os.path.join(BASE_DIR, "photos")
+config = json.load(open(os.path.join(BASE_DIR, "photos", "speed.ini"), "rb"))
+wall_cols, bg_change_speed, letteroy_change_speed, main_logo, event_title, lottery_people, avatar_format = \
+    config.get('wall_cols', 15), \
+    config.get('bg_change_speed', 3000), \
+    config.get('lottery_change_speed', 78), \
+    config.get('main_logo',  {"postion":[6, 3, 4], "bg_color":"#eee"}), \
+    config.get('event_title', "PyCon 2011 China"), \
+    config.get('lottery_people_name', {"font_size": 30, "position":[100, 280]}), \
+    config.get('avatar_format', 'png')
 
 def load_images(enable_types=["image/jpeg", "image/png", "image/gif"]):
     LOGO_PATH = os.path.join(BASE_DIR, "photos/logos")
@@ -36,27 +45,19 @@ def load_namelist(file='photos/namelist.xls'):
     sh = book.sheet_by_index(0)
     for rx in range(sh.nrows):
         row = sh.row(rx)
-        namelist.append(('%s.png' % row[0].value, row[1].value, row[2].value, row[3].value))
-        
+        image, id, name, email = '%s.%s' % (row[0].value, avatar_format), row[1].value, row[2].value, row[3].value
+        if image and os.path.exists(os.path.join(PHOTO_PATH, "peoples", image)):
+            namelist.append((image, id, name, email))
+            
     return namelist
 
 namelist =  load_namelist()
-
-config = json.load(open(os.path.join(BASE_DIR, "photos", "speed.ini"), "rb"))
-wall_cols, bg_change_speed, letteroy_change_speed, main_logo, event_title, lottery_people = \
-    config.get('wall_cols', 15), \
-    config.get('bg_change_speed', 3000), \
-    config.get('lottery_change_speed', 78), \
-    config.get('main_logo',  {"postion":[6, 3, 4], "bg_color":"#eee"}), \
-    config.get('event_title', "PyCon 2011 China"), \
-    config.get('lottery_people_name', {"font_size": 30, "position":[100, 280]})
 
 
 class WallWindow(wx.Window):
     def __init__(self, parent):
         wx.Window.__init__(self, parent)
         self.photos = load_images()
-        print self.photos
         self.Bind(wx.EVT_PAINT, self.on_paint)
         self.Bind(wx.EVT_KEY_DOWN, self.OnKeypress)
         self.cols = wall_cols
