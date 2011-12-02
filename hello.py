@@ -95,8 +95,8 @@ class WallWindow(wx.Window):
                 if not image:
                     image = Image.open(os.path.join(BASE_DIR, "photos", self.photos[self.cur]))
                     self._image_cache[self.photos[self.cur]] = image
-                val = imgutil._crop((w-2, w-2), image)
-                background.paste(Image.open(cStringIO.StringIO(val)), (x, y))
+                image = imgutil._crop((w-2, w-2), image, False)
+                background.paste(image, (x, y))
             n += 1
             self.cur += 1
             if n % self.cols == 0:
@@ -106,9 +106,11 @@ class WallWindow(wx.Window):
                 x += w
             if self.cur >= len(self.photos):
                 self.cur = 0
-                
-        val = imgutil._crop((w*main_logo['postion'][2], w*main_logo['postion'][2]), Image.open(os.path.join(BASE_DIR, "photos", "main.png")))
-        background.paste(Image.open(cStringIO.StringIO(val)), (left+main_logo['postion'][0]*w, top+main_logo['postion'][1]*w))
+
+        image = imgutil._crop((w*main_logo['postion'][2], w*main_logo['postion'][2]), 
+                              Image.open(os.path.join(BASE_DIR, "photos", "main.png")),
+                              False)
+        background.paste(image, (left+main_logo['postion'][0]*w, top+main_logo['postion'][1]*w))
         return background
     
     def next_people(self):
@@ -116,11 +118,11 @@ class WallWindow(wx.Window):
         avatar_path = os.path.join(BASE_DIR, "photos/peoples", image)
         if os.path.exists(avatar_path):
             dw, dh = wx.DisplaySize()
-            w = int(math.ceil(((dw-self.cols*2)*1.0)/(self.cols*1.0)))
+            w = imgutil.rcd(((dw-self.cols*2)*1.0)/(self.cols*1.0))
             background = Image.new('RGBA', (w*main_logo['postion'][2], w*main_logo['postion'][2]), main_logo['bg_color'])
             image = Image.open(avatar_path)
-            val = imgutil._crop((w*2, w*2), image)
-            background.paste(Image.open(cStringIO.StringIO(val)), (1*w, 1*w))
+            image = imgutil._crop((w*2, w*2), image, False)
+            background.paste(image, (1*w, 1*w))
             body_font = ImageFont.truetype(os.path.join(BASE_DIR, "xxk.ttf"), lottery_people['font_size'])
             imgutil.draw_word_wrap(
                     background,
@@ -145,16 +147,16 @@ class WallWindow(wx.Window):
         dc = wx.PaintDC(self)
         bmp = wx.BitmapFromImage(wx.ImageFromStream( cStringIO.StringIO(self.get_background())))
         dc.DrawBitmap(bmp, 0, 0, True)
-    
+        
     def draw_people(self):
         dw, dh = wx.DisplaySize()
-        w = int(math.ceil(((dw-self.cols*2)*1.0)/(self.cols*1.0)))
+        w = imgutil.rcd(((dw-self.cols*2)*1.0)/(self.cols*1.0))
         top = ((dh%w)/4)
         left = ((dw%w)/2)
         bmp = wx.BitmapFromImage(wx.ImageFromStream( cStringIO.StringIO(self.next_people())))
         dc = wx.PaintDC(self)
         dc.DrawBitmap(bmp, main_logo['postion'][0]*w+left, main_logo['postion'][1]*w+top, True)
-        
+
     def on_paint(self, evt):
         if self.bg_start:
             self.draw_backgroud()
@@ -162,7 +164,7 @@ class WallWindow(wx.Window):
             self.draw_people()
 
     def on_timer(self, evt):
-        print 'on change bg %s ' % self.bg_start
+#        print 'on change bg %s ' % self.bg_start
         if self.bg_start:
             self.Refresh()
 
@@ -189,7 +191,7 @@ class WallFrame(wx.Frame):
         wx.Frame.__init__(self, None, title=event_title,  size=wx.DisplaySize())
         win = WallWindow(self)
 
-class App(wx.App):  #5 wx.App子类
+class App(wx.App):
     """Application class."""
 
     def OnInit(self):
