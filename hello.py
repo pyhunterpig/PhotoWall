@@ -13,8 +13,8 @@ import json
 import ImageFont
 
 random.seed()
-BASE_DIR = os.path.dirname(__file__)
-PHOTO_PATH = os.path.join(BASE_DIR, "photos")
+BASE_DIR = os.path.dirname(__file__).replace("\\", "/")
+PHOTO_PATH = os.path.join(BASE_DIR, "photos").replace("\\", "/")
 config = json.load(open(os.path.join(BASE_DIR, "photos", "speed.ini"), "rb"))
 wall_cols, bg_change_speed, letteroy_change_speed, main_logo, event_title, lottery_people, avatar_format = \
     config.get('wall_cols', 15), \
@@ -25,7 +25,7 @@ wall_cols, bg_change_speed, letteroy_change_speed, main_logo, event_title, lotte
     config.get('lottery_people_name', {"font_size": 30, "position":[100, 280]}), \
     config.get('avatar_format', 'png')
 
-def load_images(enable_types=["image/jpeg", "image/png", "image/gif"]):
+def load_images():
     LOGO_PATH = os.path.join(BASE_DIR, "photos/logos")
     AVATAR_PATH = os.path.join(BASE_DIR, "photos/peoples")
     logos = ["logos/%s" % file for file in os.listdir(LOGO_PATH) if not os.path.isdir(os.path.join(LOGO_PATH, file))]
@@ -35,8 +35,9 @@ def load_images(enable_types=["image/jpeg", "image/png", "image/gif"]):
     images = []
     for file in files:
         types = mimetypes.guess_type(os.path.join(PHOTO_PATH, file))
-        if types and types[0] in enable_types:
+        if types and types[0] and types[0].split("/")[0] == "image":
             images.append(file)
+
     return images
 
 def load_namelist(file='photos/namelist.xls'):
@@ -83,13 +84,13 @@ class WallWindow(wx.Window):
         
         background = Image.new('RGBA', (dw, dh), (255, 255, 255, 0))
     
-        while n < (self.cols*rows):
+        while n < (self.cols*rows) and self.photos:
             need_paste = True
             if n >= (self.cols*main_logo['postion'][1] + 5) and n < (self.cols*(main_logo['postion'][0]+1) + 5):
                 for i in range(main_logo['postion'][2]):
                     if (n - (main_logo['postion'][0]+i))%self.cols == 0:
                         need_paste = False
-            if need_paste:
+            if need_paste and self.photos:
                 image =  self._image_cache.get(self.photos[self.cur], None)
                 if not image:
                     image = Image.open(os.path.join(BASE_DIR, "photos", self.photos[self.cur]))
@@ -144,33 +145,44 @@ class WallWindow(wx.Window):
         dc = wx.PaintDC(self)
         bmp = wx.BitmapFromImage(wx.ImageFromStream( cStringIO.StringIO(self.get_background())))
         dc.DrawBitmap(bmp, 0, 0, True)
-
-    def on_paint(self, evt):
-        self.draw_backgroud()
     
-    def on_timer(self, evt):
+    def draw_people(self):
+        dw, dh = wx.DisplaySize()
+        w = int(math.ceil(((dw-self.cols*2)*1.0)/(self.cols*1.0)))
+        top = ((dh%w)/4)
+        left = ((dw%w)/2)
+        bmp = wx.BitmapFromImage(wx.ImageFromStream( cStringIO.StringIO(self.next_people())))
+        dc = wx.PaintDC(self)
+        dc.DrawBitmap(bmp, main_logo['postion'][0]*w+left, main_logo['postion'][1]*w+top, True)
+        
+    def on_paint(self, evt):
         if self.bg_start:
             self.draw_backgroud()
+        elif self.lettory_start:
+            self.draw_people()
+
+    def on_timer(self, evt):
+        print 'on change bg %s ' % self.bg_start
+        if self.bg_start:
+            self.Refresh()
 
     def on_lettory(self, evt):
+        #print 'on lettory %s' % self.lettory_start
         if self.lettory_start:
-            dw, dh = wx.DisplaySize()
-            w = int(math.ceil(((dw-self.cols*2)*1.0)/(self.cols*1.0)))
-            dc = wx.PaintDC(self)
-            top = ((dh%w)/4)
-            left = ((dw%w)/2)
-            bmp = wx.BitmapFromImage(wx.ImageFromStream( cStringIO.StringIO(self.next_people())))
-            dc.DrawBitmap(bmp, main_logo['postion'][0]*w+left, main_logo['postion'][1]*w+top, True)
-    
+            self.Refresh()
+
     def OnKeypress(self, evt):
         code = evt.GetRawKeyCode()
+        print code
         # 按空格键抽奖
         if code == 32:
             self.lettory_start = not self.lettory_start
             self.bg_start = False
         # 按回车键启动或暂停更换背景
-        elif code == 65293:
-            self.bg_start = not self.bg_start
+        elif code in [65293, 13]:
+            self.bg_start = not self.lettory_start and not self.bg_start
+            if self.bg_start:
+                self.Refresh()
         
 class WallFrame(wx.Frame):
     def __init__(self):
