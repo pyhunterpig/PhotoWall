@@ -1,0 +1,10 @@
+*.db
+*.DS_Store
+*.pydevproject
+*.project
+*.pyc
+.settings*
+
+photos/logos/Screenshot at 2011-12-02 15:59:35.png
+
+photos/48.jpg
