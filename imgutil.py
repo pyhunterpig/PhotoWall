@@ -135,6 +135,10 @@ def generate_avatars():
     avatar_path = os.path.join(base_dir, "avatar")
     config = json.load(open(os.path.join(base_dir, "photos", "config.json"), "rb"))
     cols =  config.get('wall_cols', 15)
+    font_color =  config.get('lottery_people_name')['font_color']
+    top, left = config.get('lottery_people_name')['position']
+    print top, left
+    font_size = config.get('lottery_people_name')['font_size']
     w = rcd(((width - cols*2)*1.0)/(cols*1.0))
     # 清空头像目录
     if os.path.exists(avatar_path):
@@ -154,10 +158,10 @@ def generate_avatars():
     default_avatar_path = os.path.join(base_dir, "photos", "default_avatar.jpg")
     default_avatar = Image.open(default_avatar_path)
     default_avatar = _crop((w, w), default_avatar, squre=True, data=False)
-    font = ImageFont.truetype(os.path.join(base_dir, "xxk.ttf"), 20)
+    font = ImageFont.truetype(os.path.join(base_dir, "xxk.ttf"), font_size)
     for name in names:
         photo = default_avatar.copy()
-        draw_word_wrap(photo, name, 0, 50, fill="#fff", font=font)
+        draw_word_wrap(photo, name, top, left, fill=font_color, font=font)
         desc_path = os.path.join(base_dir, "avatar", "%s.jpg" % current_avatar_index)
         photo.save(desc_path)
         print current_avatar_index

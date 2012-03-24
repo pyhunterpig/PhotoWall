@@ -18,3 +18,4 @@ g.抽奖人名显示配置，font_size：字体大小，postion为相对于中�
 "lottery_people_name": {"font_size": 30, "position":[90, 280], "font_color":"#fff"}
 
 3.抽奖按空格，照片墙滚动按回车
+4.产生抽奖结果后，按s建保存

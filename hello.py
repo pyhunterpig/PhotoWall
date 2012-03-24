@@ -13,7 +13,8 @@ import cStringIO
 import math
 import json
 
-random.seed()
+from lettory import Lettory
+
 BASE_DIR = os.path.dirname(__file__).replace("\\", "/")
 PHOTO_PATH = os.path.join(BASE_DIR, "photos").replace("\\", "/")
 config = json.load(open(os.path.join(BASE_DIR, "photos", "config.json"), "rb"))
@@ -45,6 +46,7 @@ class WallWindow(wx.Window):
         self.lettory_timer.Start(letteroy_change_speed)
         self.lettory_start = False
         self.bg_start  = True
+        self.lettory = Lettory(BASE_DIR)         
 
     def next_background(self):
         n = 0
@@ -86,11 +88,8 @@ class WallWindow(wx.Window):
         return background
     
     def next_people(self):
-        avatar_path = os.path.join(BASE_DIR, "avatar")
-        avatar_names = [file for file in os.listdir(avatar_path) if not os.path.isdir(os.path.join(avatar_path, file))]
-        name =  random.choice(avatar_names)
-        avatar_path = os.path.join(avatar_path, name)
-        if os.path.exists(avatar_path):
+        avatar_path = self.lettory.next_people_avatar()
+        if avatar_path and os.path.exists(avatar_path):
             dw, dh = wx.DisplaySize()
             w = imgutil.rcd(((dw-self.cols*2)*1.0)/(self.cols*1.0))
             background = Image.new('RGBA', (w*main_logo['postion'][2], w*main_logo['postion'][2]), main_logo['bg_color'])
@@ -154,6 +153,10 @@ class WallWindow(wx.Window):
         if code in [32, 12576, 49]:
             self.lettory_start = not self.lettory_start
             self.bg_start = False
+        # 按s键盘保存结果
+        if code == 1 and not self.lettory_start:
+            self.lettory.save_lucky_people()
+            
         # 按回车键启动或暂停更换背景
         elif code in [65293, 13, 36]:
             self.bg_start = not self.lettory_start and not self.bg_start
