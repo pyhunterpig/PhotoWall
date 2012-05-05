@@ -139,7 +139,7 @@ def generate_avatars():
     top, left = config.get('lottery_people_name')['position']
     print top, left
     font_size = config.get('lottery_people_name')['font_size']
-    w = rcd(((width - cols*2)*1.0)/(cols*1.0))
+    w = 400#rcd(((width - cols*2)*1.0)/(cols*1.0))
     # 清空头像目录
     if os.path.exists(avatar_path):
         shutil.rmtree(avatar_path)

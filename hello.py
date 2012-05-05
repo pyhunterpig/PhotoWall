@@ -46,7 +46,10 @@ class WallWindow(wx.Window):
         self.lettory_timer.Start(letteroy_change_speed)
         self.lettory_start = False
         self.bg_start  = True
-        self.lettory = Lettory(BASE_DIR)         
+        self.lettory = Lettory(BASE_DIR)
+        for photo in self.photos:
+            image = Image.open(os.path.join(BASE_DIR, "photos", photo))
+            self._image_cache[self.photos[self.cur]] = image
 
     def next_background(self):
         n = 0
@@ -55,7 +58,7 @@ class WallWindow(wx.Window):
         y = top = ((dh%w)/4)
         x = left = ((dw%w)/2)
         rows = dh/w
-        
+        print "width: %s" % w
         background = Image.new('RGBA', (dw, dh), (255, 255, 255, 0))
     
         while n < (self.cols*rows) and self.photos:
@@ -69,7 +72,8 @@ class WallWindow(wx.Window):
                 if not image:
                     image = Image.open(os.path.join(BASE_DIR, "photos", self.photos[self.cur]))
                     self._image_cache[self.photos[self.cur]] = image
-                image = imgutil._crop((w-2, w-2), image, False)
+                image.thumbnail((w-2, w-2), Image.ANTIALIAS)
+#                image = imgutil._crop((w-2, w-2), image, True)
                 background.paste(image, (x, y))
             n += 1
             self.cur += 1
@@ -82,7 +86,7 @@ class WallWindow(wx.Window):
                 self.cur = 0
 
         image = imgutil._crop((w*main_logo['postion'][2], w*main_logo['postion'][2]), 
-                              Image.open(os.path.join(BASE_DIR, "photos", "main.png")),
+                              Image.open(os.path.join(BASE_DIR, "photos", "Steve-Jobs-iOSCon.jpg")),
                               False)
         background.paste(image, (left+main_logo['postion'][0]*w, top+main_logo['postion'][1]*w))
         return background
@@ -94,8 +98,8 @@ class WallWindow(wx.Window):
             w = imgutil.rcd(((dw-self.cols*2)*1.0)/(self.cols*1.0))
             background = Image.new('RGBA', (w*main_logo['postion'][2], w*main_logo['postion'][2]), main_logo['bg_color'])
             image = Image.open(avatar_path)
-            image = imgutil._crop((w*2, w*2), image, False)
-            background.paste(image, (1*w, 1*w))
+            image = imgutil._crop((w*main_logo['postion'][2], w*main_logo['postion'][2]), image, False)
+            background.paste(image, (0, 0))
 #            body_font = ImageFont.truetype(os.path.join(BASE_DIR, "xxk.ttf"), lottery_people['font_size'])
 #            imgutil.draw_word_wrap(
 #                    background,

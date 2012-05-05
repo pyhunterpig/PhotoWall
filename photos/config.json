@@ -1,9 +1,9 @@
 {
 "event_title":"PyCon 2011 China",
 "avatar_format":"png",
-"wall_cols":15,
+"wall_cols":10,
 "bg_change_speed":3000, 
 "letteroy_change_speed":78,
-"main_logo": {"postion":[6, 3, 4], "bg_color":"#eee"},
+"main_logo": {"postion":[3, 1, 4], "bg_color":"#eee"},
 "lottery_people_name": {"font_size": 30, "position":[10, 50], "font_color":"#000"}
 }
